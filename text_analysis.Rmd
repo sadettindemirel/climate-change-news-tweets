@@ -1,0 +1,397 @@
+---
+title: "text_analysis"
+output: html_document
+date: "2024-02-12"
+---
+
+```{r}
+library(tidyverse)
+library(quanteda)
+library(ggplot2)
+library(quanteda.textplots)
+library(quanteda.textstats)
+library(stopwords)
+library(forcats)
+library(tidytext)
+#library(ggwordcloud)
+options(scipen=999)
+Sys.setlocale("LC_ALL", 'tr_TR.UTF-8')
+```
+
+```{r message=FALSE, warning=FALSE}
+theme_poppins <- function() {
+  theme_minimal() +
+    theme(
+      text = element_text(family = "Poppins", color = "gray25"),
+      plot.title = element_text(face = "bold",size = 12),
+      plot.title.position = "plot",
+      plot.subtitle = element_text(size = 11),
+      axis.text.x= element_text(size=10),
+      axis.text.y = element_text(size=10),
+      plot.caption = element_text(size = 10, color = "gray30"),
+      plot.background = element_rect(fill = "#ffffff"),
+      legend.position = "none",
+      strip.background = element_rect(colour = "#d9d9d9", fill = "#d9d9d9"),
+      strip.text.x = element_text(size = 10, colour = "gray25", face = "bold"))
+}
+```
+***
+
+
+```{r}
+ht <- readRDS("~/Rstats/iklimdeg/tweets_sentiment.rds") %>% filter(!user_username %in% c("gazeteduvar","ahaber","ntv"))
+
+glimpse(ht)
+```
+
+
+```{r}
+ht %>% group_by(gpt4_sentiment) %>% summarise(mean(like_count), mean(retweet_count)) 
+```
+
+
+```{r}
+ht %>% count(user_username, sort = T) %>%  mutate(perc = n/sum(n))
+ht %>% count(ideoloji, sort = T) %>% mutate(perc = n/sum(n))
+```
+
+```{r}
+ht %>% ggplot(aes(tarih))+geom_histogram(bins = 100)+theme_poppins()
+```
+
+
+```{r}
+ht %>% ggplot(aes(tarih, fill = ideoloji))+geom_histogram(bins = 100, alpha = 0.7)+theme_poppins()+facet_wrap(~user_username) + scale_fill_manual(values = c("darkorange","darkblue","darkgreen"))
+
+
+ht %>% ggplot(aes(tarih, fill = ideoloji))+geom_histogram(bins = 100,alpha = 0.7)+theme_poppins()+facet_wrap(~ideoloji)+ scale_fill_manual(values = c("darkorange","darkblue","darkgreen"))
+```
+
+
+***
+
+*TEXT ANALYSIS*
+
+```{r}
+haber_corpus <-  corpus(ht)
+summary(haber_corpus) %>% head()
+```
+
+```{r}
+ntoken(haber_corpus) %>% sum()
+nsentence((haber_corpus)) %>% sum()
+```
+
+```{r}
+s
+```
+
+
+```{r}
+
+custom_stopwords <- c("ortaya","çıktı","içinde","yıl","karşıya","dikkat","çekmek","son","yılda","yol","açtığı","ilan","edildi","gürbüz","yazdı","karşı","haberturk","rt","a","ye","in","değişik*","iklim","bir","ii","i̇klim")
+
+
+
+haber_toks <- tokens(haber_corpus, 
+                  remove_punct = T, remove_numbers = T, remove_url = T, 
+                  remove_symbols = T) %>% 
+  tokens_select(pattern = stopwords(language = "tr",source = "stopwords-iso"), selection = "remove") %>% 
+   tokens_select(pattern = stopwords(language = "tr",source = "nltk"), selection = "remove") %>% 
+  tokens_replace(pattern = "['’].*", valuetype = "regex", replacement = "") %>% 
+  tokens_select(pattern = custom_stopwords, selection = "remove") %>% 
+  tokens_remove(pattern = "@*") %>% 
+  tokens_remove(pattern = "[:emoji:]", valuetype = "regex") %>% 
+  tokens_remove(pattern = "#*") 
+
+haber_toks_stem <- tokens(haber_corpus, 
+                  remove_punct = T, remove_numbers = T, remove_url = T, 
+                  remove_symbols = T) %>% 
+  tokens_select(pattern = stopwords(language = "tr",source = "stopwords-iso"), selection = "remove") %>% 
+   tokens_select(pattern = stopwords(language = "tr",source = "nltk"), selection = "remove") %>% 
+  tokens_replace(pattern = "['’].*", valuetype = "regex", replacement = "") %>% 
+  tokens_select(pattern = custom_stopwords, selection = "remove") %>% 
+  tokens_remove(pattern = "@*") %>% 
+  tokens_remove(pattern = "#*") %>%
+  tokens_wordstem(language = "tr")
+```
+
+
+```{r}
+unigrams_dfm <- dfm(haber_toks) 
+top_unigrams <- textstat_frequency(unigrams_dfm) %>% filter(nchar(feature)>0)
+top_unigrams %>% head()
+```
+
+`
+
+**bigram**
+
+```{r}
+bigrams_dfm <- haber_toks %>% 
+  tokens_remove(pattern = c("ortaya","çıktı","içinde","yıl","karşıya","dikkat","çekmek","son","yılda","yol","açtığı","ilan","edildi")) %>% 
+  tokens_replace(pattern = "ısınma*", replacement = "ısınma") %>% 
+  tokens_replace(pattern = "alarmı*", replacement = "uyarısı") %>% 
+  tokens_ngrams(n = 2) %>% dfm() %>% 
+  dfm_replace(pattern = "bm_genel", replacement = "birleşmiş_milletler") %>% 
+  dfm_replace(pattern = "küresel_ısınma+", replacement = "küresel_ısınma") %>% dfm_remove(pattern ="	
+🖊️_özer" )
+
+```
+
+```{r}
+tidy_gen_bigrams <- textstat_frequency(bigrams_dfm) %>% filter(!feature %in% c("kuraklık_su","şiddetli_kuraklık",
+"önlem_alınmazsa","kuraklık_açıklaması","kuraklıkla_mücadele","olağanüstü_kuraklık","dünyanın_büyük","büyük_tehlike","devam_ederse","büyük_tehdit","yaşanan_kuraklık","kuraklık_vurdu","serdar_m","ayşe_özek","ülke_olacak","gölü_kuraklık","geçen_gün", "✒️_özer"))
+
+tidy_gen_bigrams %>%  slice_max(frequency, n= 20) %>% 
+  ggplot(aes(fct_reorder(feature, frequency),frequency))+
+  geom_col(fill ="#2b61a1")+
+  coord_flip()+
+  labs(x="",y="")+theme_poppins()+labs()+theme_poppins()
+
+#ggsave("top20_gen_bigram2.png",width = 7, height = 6, dpi = 600)
+```
+```{r}
+fr <- tidy_gen_bigrams %>%  slice_max(frequency, n= 23) %>% pull(frequency)
+fr
+```
+
+
+
+
+```{r}
+tibble(feature = c("global warming","professor","drought warning","president erdogan",
+                   "greenhouse gas","united nations","scientists","water level","drought issue",
+                   "environment urbanization","associate profesor","global crisis","greta thunberg",
+                   "water shortage","chamber of engineers","emine erdogan","thirst drought","warm weather",
+                   "experiencing drought","dam occupancy","doganay tolunay","chp member","us president"
+                   ),
+       frequency = fr) %>% ggplot(aes(fct_reorder(feature, frequency),frequency))+
+  geom_col(fill ="#2b61a1")+
+  coord_flip()+
+  labs(x="",y="")+theme_poppins()+labs()+theme_poppins()
+
+ggsave("top20_gen_bigram_en.png",width = 7, height = 6, dpi = 600)
+```
+
+
+
+```{r}
+textplot_wordcloud(bigrams_dfm, max_words = 100, min_size = 1)
+```
+
+
+
+```{r}
+tidy_gen_bigrams2 <- textstat_frequency(bigrams_dfm, groups = ideoloji) %>% filter(!feature %in% c("kuraklık_su","şiddetli_kuraklık",
+"önlem_alınmazsa","kuraklık_açıklaması","kuraklıkla_mücadele","olağanüstü_kuraklık","dünyanın_büyük","büyük_tehlike","devam_ederse","büyük_tehdit","yaşanan_kuraklık","kuraklık_vurdu","serdar_m","ayşe_özek","tuğçe_madayanti","m_değirmencioğlu","geçen_artıyor","özek_karasu","ülke_olacak","sıkıntısı_geçen","kaleme_aldı","özer_akdemir","dr_doğanay","artıyor_uzmanlara","alınmazsa_türkiye","✒️_özer"))
+
+tidy_gen_bigrams2$group <- factor(tidy_gen_bigrams2$group, levels = c("conservative","center","progressive"))
+
+
+head(tidy_gen_bigrams2, 50)
+
+tidy_gen_bigrams2 %>%  group_by(group) %>% 
+  slice_max(frequency, n = 15, with_ties = F) %>% 
+  mutate(feature = reorder_within(feature,frequency,group)) %>%
+  ggplot(aes(frequency, feature, fill = group)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = "frequency", y = NULL) +
+  facet_wrap(~group, ncol = 3, scales = "free")+
+  theme_poppins()+ scale_y_reordered()+scale_fill_manual(values = c("#FF6868","#FBA834","#2D9596"))
+
+#ggsave("top20_gen_bigram2.png",width = 9, height = 5, dpi = 600)
+```
+```{r}
+group <- tidy_gen_bigrams2 %>%  group_by(group) %>% 
+  slice_max(frequency, n = 15, with_ties = F) %>% pull(group)
+
+freq <- tidy_gen_bigrams2 %>%  group_by(group) %>% 
+  slice_max(frequency, n = 15, with_ties = F) %>% pull(frequency)
+
+```
+
+
+
+```{r}
+#translation Turkish words to English for the publication
+tibble(feature = c("global warming","president erdogan","professor","united nations","drought warning",
+                   "emine erdogan","murat kurum","water level","environment urbanization","zero waste",
+                   "struggle","urban minister","greenhouse gas","worldwide","european union",
+                   
+                   "global warming","professor","drought warning","scientists","water level","drought danger",
+                   "president erdogan","water shortage","greenhouse gas","expert precaution",
+                   "drought risk","floods","global crisis","experiencing drought","impact farmers",
+                   
+                   "global warming","professor","drought warning","greenhouse gas","united nations","thirst drought",
+                   "daganay tolunay", "chamber of engineers","global resistance","experiencing drought",
+                   "greta thunberg","associate professor","fossil fuel","chp member","action plan"),
+      frequency = freq,
+      group = group) %>% group_by(group) %>% 
+  slice_max(frequency, n = 15, with_ties = F) %>% 
+  mutate(feature = reorder_within(feature,frequency,group)) %>%
+  ggplot(aes(frequency, feature, fill = group)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = "frequency", y = NULL) +
+  facet_wrap(~group, ncol = 3, scales = "free")+
+  theme_poppins()+ scale_y_reordered()+scale_fill_manual(values = c("#FF6868","#FBA834","#2D9596"))
+
+ggsave("top20_gen_bigram2_en.png",width = 9, height = 5, dpi = 600)
+```
+
+
+**Co-locations**
+
+```{r}
+toks_news <- tokens(haber_corpus, remove_punct = TRUE, remove_url = TRUE,
+                    remove_symbols = TRUE) %>% tokens_replace(pattern = "Erdoğan'dan", replacement = "Erdoğan")
+
+tstat_col_caps <- tokens_select(toks_news, pattern = "^[A-Z]", 
+                                valuetype = "regex", 
+                                case_insensitive = FALSE, 
+                                padding = TRUE) %>% 
+  textstat_collocations(min_count = 3,size =2,tolower = FALSE)
+
+
+tstat_col_caps
+
+
+tstat_col_caps %>% 
+  slice_max(z, n= 20) %>% 
+  ggplot(aes(fct_reorder(collocation, z),z))+
+  geom_col(fill ="#2b61a1")+
+  coord_flip()+
+  labs(x="",y="")+theme_poppins()+labs()+theme_poppins()
+
+ggsave("top20_colocations.png",width = 7, height = 6, dpi = 600)
+```
+
+
+
+*BY NEWS ORGS*
+
+```{r}
+library(tidylo)
+```
+
+
+```{r}
+
+custom_stopwords <- c("https","tuğçe","özek","özer","m","ortaya","çıktı","içinde","yıl","karşıya","dikkat","çekmek","son","yılda","yol","açtığı","ilan","edildi","gürbüz","yazdı","karşı","haberturk","rt","a","ye","in","değişik*","iklim","bir","ii","i̇klim")
+
+custom_stopwords2 <-  c("değirmencioğlu","dünyanın","devam","ederse","serdar","m","ayşe","özek","tuğçe",
+                       "madayanti","m","değirmencioğlu","geçen","artıyor","özek","karasu","ülke","olacak",
+                       "sıkıntısı","geçen","kaleme","aldı","özer","akdemir","artıyor","uzmanlara",
+                       "alınmazsa","türkiye","ı","yeni","şafak","habertürk","yazarı","ihsan","çaralan","yücel","özdemir","özgür","demet","sargın","hediye","levent","sırada","yer","harekete","geçti","öne","süren")
+
+haber_toks <- tokens(haber_corpus, 
+                  remove_punct = T, remove_numbers = T, remove_url = T, 
+                  remove_symbols = T) %>% 
+  tokens_select(pattern = stopwords(language = "tr",source = "stopwords-iso"), selection = "remove") %>% 
+   tokens_select(pattern = stopwords(language = "tr",source = "nltk"), selection = "remove") %>% 
+  tokens_replace(pattern = "['’].*", valuetype = "regex", replacement = "") %>% 
+  tokens_select(pattern = custom_stopwords, selection = "remove") %>% 
+  tokens_select(pattern = custom_stopwords2, selection = "remove") %>%
+  tokens_remove(pattern = "@*") %>% 
+  tokens_remove(pattern = "#*") 
+
+
+```
+
+```{r}
+unigrams_dfm <- dfm(haber_toks)
+bigrams_dfm <- haber_toks %>% tokens_ngrams(n=2) %>% dfm()
+```
+
+
+
+
+```{r}
+
+log_odds_ideo <- unigrams_ideo %>%  bind_log_odds(group, feature, frequency) 
+
+log_odds_ideo$group <- factor(log_odds_ideo$group, levels = c("conservative","center","progressive"))
+
+head(log_odds_ideo,30)
+```
+
+
+
+```{r}
+log_odds_ideo %>% filter(group!="na") %>% 
+  group_by(group) %>% 
+  slice_max(log_odds_weighted, n = 20, with_ties = F) %>% 
+  ungroup() %>%
+  mutate(word = reorder_within(feature,log_odds_weighted, group)) %>%
+  ggplot(aes(log_odds_weighted, word, fill = group)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = "log_odds_weighted", y = NULL) +
+  facet_wrap(~group, ncol = 3, scales = "free")+theme_poppins()+
+    scale_y_reordered()+
+  scale_fill_manual(values = c("#FF6868","#FBA834","#2D9596"))
+```
+
+
+```{r}
+bigrams_ideo <- textstat_frequency(bigrams_dfm, groups = ideoloji) %>% filter(nchar(feature)>0)
+log_odds_ideo2 <- bigrams_ideo %>%  bind_log_odds(group, feature, frequency)
+
+log_odds_ideo2$group <- factor(log_odds_ideo2$group, levels = c("conservative","center","progressive"))
+
+head(log_odds_ideo2,30)
+```
+
+
+
+
+```{r}
+log_odds_ideo2 %>% filter(group!="na") %>% 
+  group_by(group) %>% 
+  slice_max(log_odds_weighted, n = 15, with_ties = F) %>% 
+  ungroup() %>%
+  mutate(word = reorder_within(feature,log_odds_weighted, group)) %>%
+  ggplot(aes(log_odds_weighted, word, fill = group)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = "log_odds_weighted", y = NULL) +
+  facet_wrap(~group, ncol = 3, scales = "free")+theme_poppins()+
+    scale_y_reordered()+scale_fill_manual(values = c("#FF6868","#FBA834","#2D9596"))
+
+
+```
+
+*KEYNESS BY IDEOLOGY*
+
+
+```{r}
+
+new_bigrams_dfm <- bigrams_dfm %>% dfm_subset(docvars(bigrams_dfm)$ideoloji %in% c("conservative","progressive")) %>% dfm_select(pattern = "[A-Za-z]*", valuetype = "regex",selection = "keep")
+
+tstat_key <- textstat_keyness(new_bigrams_dfm, 
+                              target = (docvars(new_bigrams_dfm)$ideoloji == "conservative")) %>% filter(feature != "cumhurbaşkanı_erdoğan")
+
+textplot_keyness(tstat_key, n = 20, font = "Poppins",color = c("#FF6868", "#2D9596"))+theme(legend.position = "none")+xlim(-10,21)
+
+#ggsave("bigram_keyness.png", width = 10, height = 9, dpi = 600)
+#ggsave("bigram_keyness.svg", width = 10, height = 9, dpi = 600)
+```
+
+```{r}
+feature1= c("president erdogan","emine erdogan","zero waste","struggle","urban minister","environmental education",
+           "water level","environment urbanization","experiencing drought","murat kurum","waste verdict",
+           "minister pekdemirli","energy conversion","melting glaciers","development plan","general assembly","red alert","global scale","minister of forestry","sustainable development")
+
+
+feature2= c("doganay tolunay","water shortage","global resistance","gave hope","özer akdemir","global warming","dr doganay","drought warning","professor","chamber of engineers","action plan","greenhouse gas","urgent measure","climate alarming","chp member","dr mikdat", "dr murat","ecological destruction","enviromental engineers", "extreme drought")
+```
+
+```{r}
+tstat_key2 <- bind_rows(tstat_key %>% slice_max(chi2, n=20) %>% head(20) %>% mutate(feature = feature1),
+
+tstat_key %>% slice_min(chi2, n=20) %>% head(20) %>% mutate(feature = feature2))
+
+textplot_keyness(tstat_key2, n = 20, font = "Poppins",color = c("#FF6868", "#2D9596"))+theme(legend.position = "none")+xlim(-10,21)
+
+ggsave("bigram_keyness_en.png", width = 10, height = 9, dpi = 600)
+```
+
+

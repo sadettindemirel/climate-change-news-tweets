@@ -1,0 +1,145 @@
+---
+title: "sentiment_analysis"
+output: html_document
+date: "2024-02-12"
+---
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(irr)
+```
+
+## Import Datasets
+
+```{r}
+tweets <- readRDS("tweets_sentiment.rds")
+```
+
+```{r}
+tweets %>% count(gpt4_sentiment) %>% mutate(perc = n/sum(n))
+```
+
+```{r}
+tweets %>% group_by(ideoloji)%>% count(gpt4_sentiment) %>% mutate(perc = n/sum(n)) %>% ungroup() %>% pivot_wider(names_from = gpt4_sentiment, values_from = perc, -n) %>% mutate(a= negative + neutral + positive)
+```
+
+
+
+```{r}
+tweets %>% group_by(user_username)%>% count(gpt4_sentiment) %>% mutate(perc = n/sum(n)) %>% ungroup() %>% pivot_wider(names_from = gpt4_sentiment, values_from = perc, -n) %>% mutate(a= negative + neutral + positive)
+```
+
+
+## **Compare GPT Sentiment **
+
+**zindan & nesli coding**
+
+```{r}
+zindan_coding <- read_excel("C:/Users/sdttn/Rstats/iklimdeg/chatgpt_files/gpts_samples.xlsx", sheet = 1) %>% select(1:6) %>% head(100)
+```
+
+
+```{r}
+#accuracy
+sum(zindan_coding$gpt3_duygu == zindan_coding$zindan_duygu)
+sum(zindan_coding$gpt4_duygu == zindan_coding$zindan_duygu)
+```
+
+```{r}
+#kappa
+kappa_sent1 <- zindan_coding %>% select(zindan_duygu,gpt3_duygu)
+kappa2(kappa_sent1)
+```
+
+```{r}
+#kappa
+kappa_sent2 <- zindan_coding %>% select(zindan_duygu,gpt4_duygu)
+kappa2(kappa_sent2)
+```
+
+```{r}
+kripp_sent <- zindan_coding %>% select(zindan_duygu,gpt3_duygu) %>% t()
+kripp_sent2 <- zindan_coding %>% select(zindan_duygu,gpt4_duygu) %>% t()
+```
+
+```{r}
+# Convert the data to a matrix
+data_matrix <- as.matrix(kripp_sent2)
+
+# Use the kripp.alpha function
+result <- irr::kripp.alpha(data_matrix, method = "nominal")
+print(result)
+```
+
+**nesli coding**
+
+```{r}
+nesli_coding <- read_excel("C:/Users/sdttn/Rstats/iklimdeg/chatgpt_files/gpts_samples.xlsx", sheet = 2) %>% select(1:6) %>% head(100)
+```
+
+
+```{r}
+#accuracy
+sum(nesli_coding$gpt3_duygu == nesli_coding$nesli_duygu)
+sum(nesli_coding$gpt4_duygu == nesli_coding$nesli_duygu)
+```
+
+```{r}
+#kappa
+kappa_sent1 <- nesli_coding %>% select(nesli_duygu,gpt3_duygu)
+kappa2(kappa_sent1)
+```
+
+```{r}
+#kappa
+kappa_sent2 <- nesli_coding %>% select(nesli_duygu,gpt4_duygu)
+kappa2(kappa_sent2)
+```
+
+```{r}
+kripp_sent <- nesli_coding %>% select(nesli_duygu,gpt3_duygu) %>% t()
+kripp_sent2 <- nesli_coding %>% select(nesli_duygu,gpt4_duygu) %>% t()
+```
+
+```{r}
+# Convert the data to a matrix
+data_matrix <- as.matrix(kripp_sent2)
+
+# Use the kripp.alpha function
+result <- irr::kripp.alpha(data_matrix, method = "nominal")
+print(result)
+```
+**Comparison on binded tweets**
+
+```{r}
+all_coding <- bind_rows(zindan_coding %>% select(everything(), nesli_duygu=zindan_duygu), nesli_coding)
+```
+
+```{r}
+#accuracy
+sum(all_coding$gpt3_duygu == all_coding$nesli_duygu)/200*100
+sum(all_coding$gpt4_duygu == all_coding$nesli_duygu)/200*100
+```
+
+```{r}
+#kappa
+kappa_sent1 <- all_coding %>% select(nesli_duygu,gpt3_duygu)
+kappa2(kappa_sent1)
+```
+
+```{r}
+#kappa
+kappa_sent2 <- nesli_coding %>% select(nesli_duygu,gpt4_duygu)
+kappa2(kappa_sent2)
+```
+
+```{r}
+kripp_sent <- nesli_coding %>% select(nesli_duygu,gpt3_duygu) %>% t()
+kripp_sent2 <- nesli_coding %>% select(nesli_duygu,gpt4_duygu) %>% t()
+```
+
+
+
+`
